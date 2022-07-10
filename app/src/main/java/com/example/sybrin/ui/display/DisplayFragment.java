@@ -9,8 +9,12 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
 
+import com.example.sybrin.R;
+import com.example.sybrin.components.RecyclerviewAdapter;
 import com.example.sybrin.databinding.FragmentDisplayBinding;
 
 public class DisplayFragment extends Fragment {
@@ -24,7 +28,12 @@ public class DisplayFragment extends Fragment {
 
         binding = FragmentDisplayBinding.inflate(inflater, container, false);
         View root = binding.getRoot();
-        
+
+        //Set up recyclerview
+        RecyclerView recyclerView = (RecyclerView) root.findViewById(R.id.displayRecyclerView);
+        recyclerView.setLayoutManager(new LinearLayoutManager(root.getContext()));
+        recyclerView.setAdapter(new RecyclerviewAdapter(new String[]{"hello", "ndeipi", "hello world"}));
+
         return root;
     }
 
