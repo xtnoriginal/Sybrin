@@ -9,20 +9,27 @@ import android.graphics.ColorFilter;
 import android.graphics.SurfaceTexture;
 import android.graphics.drawable.Drawable;
 import android.hardware.camera2.CameraAccessException;
+import android.hardware.camera2.CameraCaptureSession;
 import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraExtensionCharacteristics;
 import android.hardware.camera2.CameraManager;
+import android.hardware.camera2.CameraMetadata;
+import android.hardware.camera2.CaptureRequest;
 import android.hardware.camera2.params.StreamConfigurationMap;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.HandlerThread;
 import android.util.Log;
 import android.util.Size;
 import android.view.LayoutInflater;
+import android.view.Surface;
 import android.view.TextureView;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -37,6 +44,8 @@ import com.example.sybrin.R;
 import com.example.sybrin.components.Camera;
 import com.example.sybrin.databinding.FragmentCameraBinding;
 
+import java.util.Arrays;
+
 
 public class CameraFragment extends Fragment {
     private static final String TAG = "CameraFragment";
@@ -48,6 +57,12 @@ public class CameraFragment extends Fragment {
     private String cameraID;
     private Size imageDimension;
     private static final int REQUEST_CAMERA_PERMISSION = 200;
+    protected CaptureRequest.Builder captureRequestBuilder;
+    protected CameraCaptureSession cameraCaptureSessions;
+    private Handler mBackgroundHandler;
+    private HandlerThread mBackgroundThread;
+
+
     private  TextureView.SurfaceTextureListener  textureViewListener;
 
     public View onCreateView(@NonNull LayoutInflater inflater,
@@ -70,6 +85,7 @@ public class CameraFragment extends Fragment {
             public void onOpened(@NonNull CameraDevice cameraDevice) {
                 Log.e(TAG, "opened camera");
                 camera = cameraDevice;
+                createPreview();
 
             }
 
@@ -147,19 +163,22 @@ public class CameraFragment extends Fragment {
     @Override
     public void onPause() {
         super.onPause();
+        stopBackgroundThread();
     }
 
 
     @Override
     public void onResume() {
         super.onResume();
-
+        startBackgroundThread();
         if (textureView.isAvailable()) {
             openCamera();
         } else {
             textureView.setSurfaceTextureListener(textureViewListener);
         }
     }
+
+
 
 
     @Override
@@ -190,7 +209,67 @@ public class CameraFragment extends Fragment {
         }finally {
 
         }
+    }
 
+    public void createPreview() {
+        SurfaceTexture surfaceTexture = textureView.getSurfaceTexture();
+        surfaceTexture.setDefaultBufferSize(imageDimension.getWidth(), imageDimension.getHeight());
+        Surface surface = new Surface(surfaceTexture);
+
+        try {
+            captureRequestBuilder = camera.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
+
+            captureRequestBuilder.addTarget(surface);
+            camera.createCaptureSession(Arrays.asList(surface), new CameraCaptureSession.StateCallback() {
+                @Override
+                public void onConfigured(@NonNull CameraCaptureSession cameraCaptureSession) {
+                    //The camera is already closed
+                    if (null == camera) {
+                        return;
+                    }
+                    // When the session is ready, we start displaying the preview.
+                    cameraCaptureSessions = cameraCaptureSession;
+                    updatePreview();
+                }
+
+                @Override
+                public void onConfigureFailed(@NonNull CameraCaptureSession cameraCaptureSession) {
+                    Toast.makeText(getContext(), "Configuration change", Toast.LENGTH_SHORT).show();
+                }
+            }, null);
+        } catch (CameraAccessException e) {
+            e.printStackTrace();
+        }
 
     }
+
+    protected void updatePreview() {
+        if (null == camera) {
+            Log.e(TAG, "updatePreview error, return");
+        }
+        captureRequestBuilder.set(CaptureRequest.CONTROL_MODE, CameraMetadata.CONTROL_MODE_AUTO);
+        try {
+            cameraCaptureSessions.setRepeatingRequest(captureRequestBuilder.build(), null, mBackgroundHandler);
+        } catch (CameraAccessException e) {
+            e.printStackTrace();
+        }
+    }
+
+    protected void startBackgroundThread() {
+        mBackgroundThread = new HandlerThread("Camera Background");
+        mBackgroundThread.start();
+        mBackgroundHandler = new Handler(mBackgroundThread.getLooper());
+    }
+
+    protected void stopBackgroundThread() {
+        mBackgroundThread.quitSafely();
+        try {
+            mBackgroundThread.join();
+            mBackgroundThread = null;
+            mBackgroundHandler = null;
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+
 }
