@@ -15,8 +15,6 @@ public class PhotoDetails {
     @ColumnInfo(name = "contents")
     public String contents ;
 
-    @ColumnInfo(name = "date")
-    public Date date;
 
 }
 
