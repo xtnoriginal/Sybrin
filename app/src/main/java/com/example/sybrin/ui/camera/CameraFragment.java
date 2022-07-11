@@ -4,8 +4,11 @@ import android.Manifest;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.ColorFilter;
+import android.graphics.ImageFormat;
 import android.graphics.SurfaceTexture;
 import android.graphics.drawable.Drawable;
 import android.hardware.camera2.CameraAccessException;
@@ -17,18 +20,24 @@ import android.hardware.camera2.CameraManager;
 import android.hardware.camera2.CameraMetadata;
 import android.hardware.camera2.CaptureRequest;
 import android.hardware.camera2.params.StreamConfigurationMap;
+import android.media.Image;
+import android.media.ImageReader;
+import android.media.ImageReader.OnImageAvailableListener;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.util.Log;
 import android.util.Size;
+import android.util.SparseIntArray;
 import android.view.LayoutInflater;
 import android.view.Surface;
 import android.view.TextureView;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -42,9 +51,16 @@ import com.example.sybrin.MainActivity;
 import com.example.sybrin.MainActivity2;
 import com.example.sybrin.R;
 import com.example.sybrin.components.Camera;
+import com.example.sybrin.components.Data;
 import com.example.sybrin.databinding.FragmentCameraBinding;
 
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 
 public class CameraFragment extends Fragment {
@@ -61,6 +77,14 @@ public class CameraFragment extends Fragment {
     protected CameraCaptureSession cameraCaptureSessions;
     private Handler mBackgroundHandler;
     private HandlerThread mBackgroundThread;
+    private static final SparseIntArray ORIENTATIONS = new SparseIntArray();
+
+    static {
+        ORIENTATIONS.append(Surface.ROTATION_0, 90);
+        ORIENTATIONS.append(Surface.ROTATION_90, 0);
+        ORIENTATIONS.append(Surface.ROTATION_180, 270);
+        ORIENTATIONS.append(Surface.ROTATION_270, 180);
+    }
 
 
     private  TextureView.SurfaceTextureListener  textureViewListener;
@@ -78,6 +102,15 @@ public class CameraFragment extends Fragment {
 
         //get CamerDevice
         cameraManager = (CameraManager) context.getSystemService(Context.CAMERA_SERVICE);
+
+        //Onclick for the taking picture
+        ImageView takePictureImageView = (ImageView) root.findViewById(R.id.takePictureImageView);
+        takePictureImageView.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                takePicture();
+            }
+        });
 
 
         stateCallback = new CameraDevice.StateCallback() {
@@ -253,6 +286,73 @@ public class CameraFragment extends Fragment {
         } catch (CameraAccessException e) {
             e.printStackTrace();
         }
+    }
+
+
+    private  void takePicture(){
+        if(camera == null){
+            return;
+        }
+
+
+
+        try {
+            CameraCharacteristics characteristics = cameraManager.getCameraCharacteristics(cameraID);
+
+            Size[] jpegSizes = null;
+            if (characteristics != null) {
+                jpegSizes = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP).getOutputSizes(ImageFormat.JPEG);
+            }
+
+            int width = 640;
+            int height = 480;
+
+            ImageReader reader = ImageReader.newInstance(width, height, ImageFormat.JPEG, 1);
+            List<Surface> outputSurfaces = new ArrayList<Surface>(2);
+            outputSurfaces.add(reader.getSurface());
+            outputSurfaces.add(new Surface(textureView.getSurfaceTexture()));
+            final CaptureRequest.Builder captureBuilder = camera.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
+            captureBuilder.addTarget(reader.getSurface());
+            captureBuilder.set(CaptureRequest.CONTROL_MODE, CameraMetadata.CONTROL_MODE_AUTO);
+            // Orientation
+            int rotation = getActivity().getWindowManager().getDefaultDisplay().getRotation();
+            captureBuilder.set(CaptureRequest.JPEG_ORIENTATION, ORIENTATIONS.get(rotation));
+
+
+
+            reader.setOnImageAvailableListener(new OnImageAvailableListener() {
+                @Override
+                public void onImageAvailable(ImageReader imageReader) {
+
+                    Image image = reader.acquireLatestImage();
+                    ByteBuffer buffer = image.getPlanes()[0].getBuffer();
+                    byte[] bytes = new byte[buffer.capacity()];
+                    buffer.get(bytes);
+
+                    Bitmap bitmapImage = BitmapFactory.decodeByteArray(bytes, 0, bytes.length, null);
+                    Data.bitmap = bitmapImage;
+
+
+                }
+
+            }, mBackgroundHandler);
+
+           /* Image image = reader.acquireLatestImage();
+            Data.image =image;
+
+            ByteBuffer buffer = image.getPlanes()[0].getBuffer();
+            byte[] bytes = new byte[buffer.capacity()];
+            buffer.get(bytes);
+            Bitmap bitmapImage = BitmapFactory.decodeByteArray(bytes, 0, bytes.length, null);
+            Data.bitmap = bitmapImage;*/
+
+            //final File file = new File(Environment.getExternalStorageDirectory() + "/pic.jpg");
+
+
+        } catch (CameraAccessException e) {
+            e.printStackTrace();
+        }
+
     }
 
     protected void startBackgroundThread() {

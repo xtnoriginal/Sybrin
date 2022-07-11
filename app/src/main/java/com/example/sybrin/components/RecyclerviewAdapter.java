@@ -1,9 +1,11 @@
 package com.example.sybrin.components;
 
 
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.recyclerview.widget.RecyclerView;
@@ -20,12 +22,20 @@ public class RecyclerviewAdapter extends RecyclerView.Adapter<RecyclerviewAdapte
      */
     public static class ViewHolder extends RecyclerView.ViewHolder {
         private final TextView textView;
+        private final ImageView imageView;
 
         public ViewHolder(View view) {
             super(view);
             // Define click listener for the ViewHolder's View
 
             textView = (TextView) view.findViewById(R.id.textView);
+            imageView = (ImageView) view.findViewById(R.id.displayImageView);
+
+            if(Data.image !=null){
+                imageView.setImageBitmap(Data.bitmap);
+                Log.e("Adapter","image vieaw");
+            }
+
         }
 
         public TextView getTextView() {
